@@ -62,11 +62,11 @@
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
 		</plugins>
-		<resources>
+<!--		<resources>
 			<resource>
 				<directory>src/main/resources/i18n</directory>
 			</resource>
-		</resources>
+		</resources>-->
 	</build>
 
 </project>
