@@ -4,7 +4,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.hibernate.validator.messageinterpolation.ResourceBundleMessageInterpolator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -12,7 +11,6 @@ import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.i18n.LocaleContextHolder;
-import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 import org.springframework.validation.Validator;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +18,7 @@ import org.springframework.web.servlet.LocaleResolver;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 import org.springframework.web.servlet.i18n.AcceptHeaderLocaleResolver;
 
+import javax.validation.MessageInterpolator;
 import javax.validation.Valid;
 import javax.validation.constraints.DecimalMin;
 import javax.validation.constraints.NotNull;
@@ -36,66 +35,57 @@ public class SpringBootI18nApplication {
     }
 
 
-    class LocaleAwareMessageInterpolator extends ResourceBundleMessageInterpolator {
+    class LocaleAwareMessageInterpolator implements MessageInterpolator {
 
-        private Locale defaultLocale = Locale.ENGLISH;
+        private MessageSource messageSource;
 
-        public void setDefaultLocale(Locale defaultLocale) {
-            this.defaultLocale = defaultLocale;
+        public LocaleAwareMessageInterpolator(MessageSource messageSource) {
+            this.messageSource = messageSource;
         }
 
         @Override
         public String interpolate(final String messageTemplate, final Context context) {
-            return interpolate(messageTemplate, context, LocaleContextHolder.getLocale());
+            log.info("LocaleAwareMessageInterpolator.interpolate1()");
+            Locale locale = LocaleContextHolder.getLocale();
+            return messageSource.getMessage(messageTemplate, null, LocaleContextHolder.getLocale());
         }
 
         @Override
         public String interpolate(final String messageTemplate, final Context context, final Locale locale) {
-            return super.interpolate(messageTemplate, context, locale);
+            log.info("LocaleAwareMessageInterpolator.interpolate2() - {}", locale);
+            return messageSource.getMessage(messageTemplate, null, locale);
         }
     }
-
 
     @Configuration
     class WebMvcConfig extends WebMvcConfigurerAdapter {
 
-        @Bean
-        public MessageSource messageSource() {
-            ReloadableResourceBundleMessageSource bean = new ReloadableResourceBundleMessageSource();
-            bean.setBasename("classpath:i18n/messages");
-            bean.setDefaultEncoding("UTF-8");
-            return bean;
-        }
-
-        @Bean
-        public LocalValidatorFactoryBean validator() {
-            LocalValidatorFactoryBean factory = new LocalValidatorFactoryBean();
-            factory.setValidationMessageSource(messageSource());
-           // factory.setMessageInterpolator( new LocaleAwareMessageInterpolator());
-            return factory;
-        }
+        @Autowired
+        private MessageSource messageSource;
 
         @Override
         public Validator getValidator() {
             return validator();
         }
+
+        @Bean
+        public LocalValidatorFactoryBean validator() {
+            LocalValidatorFactoryBean factory = new LocalValidatorFactoryBean();
+            factory.setMessageInterpolator(new LocaleAwareMessageInterpolator(messageSource));
+            factory.setValidationMessageSource(messageSource);
+
+            return factory;
+        }
     }
 
 
-    @Bean
+
+/*    @Bean
     public LocaleResolver localeResolver() {
         AcceptHeaderLocaleResolver acceptHeaderLocaleResolver = new AcceptHeaderLocaleResolver();
         acceptHeaderLocaleResolver.setDefaultLocale(Locale.ENGLISH);
         return acceptHeaderLocaleResolver;
-    }
-/*
-    @Bean
-    public LocaleChangeInterceptor localeChangeInterceptor() {
-        LocaleChangeInterceptor localeChangeInterceptor = new LocaleChangeInterceptor();
-        localeChangeInterceptor.setParamName("lang");
-        return localeChangeInterceptor;
-    }
-*/
+    }*/
 
     @Data
     @AllArgsConstructor
@@ -122,27 +112,24 @@ public class SpringBootI18nApplication {
         @GetMapping(value = "/isAlive", produces = "application/json")
         public String isAlive() {
             log.info("CustomerController.isAlive()");
+            Locale locale = LocaleContextHolder.getLocale();
+            log.info("CustomerController.isAlive() - locale : {}", locale);
 
-            return messageSource.getMessage("message.hello:", null, Locale.US);
+            return messageSource.getMessage("message.hello", null, locale);
 
         }
 
         @GetMapping(value = "/customer/{id}", produces = "application/json")
         public Customer get(@PathVariable String id) {
             log.info("CustomerController.get({})", id);
-
             return new Customer(id, "toto", new BigDecimal(10.0));
         }
 
         @PostMapping(value = "/customer", produces = "application/json")
         public void post(@RequestBody @Valid Customer customer) {
-
-
             log.info("CustomerController.post({})", customer);
             log.info("CustomerController.post() locale: {}", LocaleContextHolder.getLocale());
 
-
         }
-
     }
 }
